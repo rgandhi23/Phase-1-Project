@@ -1,24 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pokemon Card</title>
-  <link rel="stylesheet" href="styles.css"> <!-- Link your CSS file here -->
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore, search, and compare Pokémon using live PokéAPI data.">
+    <title>Pokédex Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="scroll-progress" aria-hidden="true"></div>
 
-  <nav class="navbar">
-    <div class="logo">Pokemon Index</div>
-    <ul class="nav-links">
-       <li><a href="https://pokeapi.co/">Docs</a></li>
-    </ul>
-</nav>
-  <div id="pokemon-container">
-  </div>
-  <div id="progress-indicator"><span>Loading...</span></div>
-  <div id="progress-indicator-scroll"></div>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Pokédex Explorer home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Pokédex Explorer
+      </a>
+      <a class="api-link" href="https://pokeapi.co/" target="_blank" rel="noreferrer">Powered by PokéAPI ↗</a>
+    </header>
 
-<script src="script.js"></script>
-</body>
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Live data · 60 Pokémon</p>
+          <h1 id="hero-title">Find your next favorite Pokémon.</h1>
+          <p class="hero-description">Search by name, filter by type, compare core stats, and hear each Pokémon's cry.</p>
+        </div>
+        <div class="hero-stat" aria-label="Application summary">
+          <strong id="loaded-count">0</strong>
+          <span>Pokémon loaded</span>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="Pokémon filters">
+        <label class="search-field">
+          <span>Search</span>
+          <input id="search-input" type="search" placeholder="Try Pikachu or grass" autocomplete="off">
+        </label>
+        <label>
+          <span>Type</span>
+          <select id="type-filter">
+            <option value="all">All types</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="sort-select">
+            <option value="id">Pokédex number</option>
+            <option value="name">Name A–Z</option>
+            <option value="experience">Base experience</option>
+          </select>
+        </label>
+      </section>
+
+      <div class="results-header">
+        <p id="results-count" aria-live="polite">Loading Pokémon…</p>
+        <button id="clear-filters" class="text-button" type="button">Clear filters</button>
+      </div>
+
+      <section id="loading-state" class="state-panel" aria-live="polite">
+        <span class="loader" aria-hidden="true"></span>
+        <div>
+          <strong>Calling PokéAPI</strong>
+          <p>Collecting stats, artwork, types, and audio.</p>
+        </div>
+      </section>
+
+      <section id="error-state" class="state-panel error-panel" hidden>
+        <div>
+          <strong>We couldn't load the Pokédex.</strong>
+          <p>Check your connection and try the request again.</p>
+        </div>
+        <button id="retry-button" class="primary-button" type="button">Try again</button>
+      </section>
+
+      <section id="pokemon-container" class="pokemon-grid" aria-label="Pokémon results"></section>
+
+      <div class="load-more-wrap">
+        <button id="load-more" class="primary-button" type="button" hidden>Load more Pokémon</button>
+      </div>
+    </main>
+
+    <footer>
+      <p>Built with semantic HTML, modern JavaScript modules, and the public PokéAPI.</p>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+  </body>
 </html>

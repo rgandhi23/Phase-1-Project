@@ -15,12 +15,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check script.js
+        run: npm run check
+      - name: Run JavaScript tests
+        run: npm test
       - name: Verify required page elements
         run: |
           grep -q 'id="pokemon-container"' index.html
-          grep -q 'id="progress-indicator"' index.html
-          grep -q 'id="progress-indicator-scroll"' index.html
+          grep -q 'id="search-input"' index.html
+          grep -q 'id="type-filter"' index.html
       - name: Serve the static site
         run: |
           python3 -m http.server 8000 --bind 127.0.0.1 &

@@ -1,131 +1,200 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const pokemonContainer = document.getElementById("pokemon-container");
+import { filterAndSortPokemon, normalizePokemon } from "./pokemon.js";
 
-  window.addEventListener("load", () => {
-    const progressIndicator = document.getElementById("progress-indicator");
-    progressIndicator.style.opacity = "0"; // Hide the progress indicator
-  });
-  window.addEventListener("scroll", () => {
-    const scrollableHeight =
-      document.documentElement.scrollHeight - window.innerHeight;
-    const scrolledPercentage = (window.scrollY / scrollableHeight) * 100;
-    const progressIndicator = document.getElementById("progress-indicator-scroll");
-    progressIndicator.style.width = `${scrolledPercentage}%`;
-  });
+const API_URL = "https://pokeapi.co/api/v2/pokemon?limit=60";
+const PAGE_SIZE = 18;
 
-  let pokemonList = [];
-  let currentIndex = 0;
-  const batchSize = 20; // Number of Pokémon cards to render initially and on each lazy load
+const elements = {
+  clearFilters: document.querySelector("#clear-filters"),
+  container: document.querySelector("#pokemon-container"),
+  error: document.querySelector("#error-state"),
+  loadMore: document.querySelector("#load-more"),
+  loadedCount: document.querySelector("#loaded-count"),
+  loading: document.querySelector("#loading-state"),
+  resultsCount: document.querySelector("#results-count"),
+  retry: document.querySelector("#retry-button"),
+  scrollProgress: document.querySelector("#scroll-progress"),
+  search: document.querySelector("#search-input"),
+  sort: document.querySelector("#sort-select"),
+  type: document.querySelector("#type-filter"),
+};
 
-  // Step 1: Fetch data from a public API
-  async function fetchData() {
+const state = {
+  pokemon: [],
+  visibleCount: PAGE_SIZE,
+};
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`PokéAPI returned ${response.status}`);
+  return response.json();
+}
+
+function createPokemonCard(pokemon) {
+  const card = document.createElement("article");
+  card.className = "pokemon-card";
+
+  const visual = document.createElement("div");
+  visual.className = "card-visual";
+  visual.style.setProperty("--card-color", pokemon.color);
+
+  const number = document.createElement("span");
+  number.className = "card-number";
+  number.textContent = `#${String(pokemon.id).padStart(3, "0")}`;
+
+  const image = document.createElement("img");
+  image.className = "pokemon-image";
+  image.src = pokemon.image;
+  image.alt = pokemon.name;
+  image.loading = "lazy";
+  image.width = 170;
+  image.height = 170;
+  visual.append(number, image);
+
+  const content = document.createElement("div");
+  content.className = "card-content";
+  const heading = document.createElement("div");
+  heading.className = "card-heading";
+  const name = document.createElement("h2");
+  name.className = "pokemon-name";
+  name.textContent = pokemon.name;
+  heading.append(name);
+
+  const types = document.createElement("div");
+  types.className = "type-list";
+  for (const type of pokemon.types) {
+    const pill = document.createElement("span");
+    pill.className = "type-pill";
+    pill.textContent = type;
+    types.append(pill);
+  }
+
+  const stats = document.createElement("dl");
+  stats.className = "stats";
+  for (const [label, value] of [
+    ["EXP", pokemon.baseExperience],
+    ["Height", `${pokemon.heightMeters} m`],
+    ["Weight", `${pokemon.weightKg} kg`],
+  ]) {
+    const wrapper = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value;
+    wrapper.append(term, description);
+    stats.append(wrapper);
+  }
+
+  const abilities = document.createElement("p");
+  abilities.className = "abilities";
+  abilities.textContent = `Abilities: ${pokemon.abilities.join(", ") || "Unknown"}`;
+
+  const cryButton = document.createElement("button");
+  cryButton.className = "cry-button";
+  cryButton.type = "button";
+  cryButton.textContent = pokemon.cry ? "Play cry" : "Cry unavailable";
+  cryButton.disabled = !pokemon.cry;
+  cryButton.addEventListener("click", async () => {
+    cryButton.textContent = "Playing…";
     try {
-      const response = await fetch("https://pokeapi.co/api/v2/pokemon?limit=50");
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      const data = await response.json();
-
-      const fetchPromises = data.results.map(async (pokemon) => {
-        const apiUrl = pokemon.url;
-        const pokemonResponse = await fetch(apiUrl);
-        if (!pokemonResponse.ok) {
-          throw new Error("Network response was not ok");
-        }
-        const pokemonData = await pokemonResponse.json();
-        pokemonList.push(pokemonData);
-      });
-
-      // Wait for all fetch requests to complete before proceeding
-      await Promise.all(fetchPromises);
-
-      // After all data is fetched, inject the initial batch of Pokémon data
-      injectPokemonData();
-    } catch (error) {
-      console.error("There was a problem fetching the data:", error);
+      await new Audio(pokemon.cry).play();
+    } catch {
+      cryButton.textContent = "Audio was blocked — try again";
+      return;
     }
+    cryButton.textContent = "Play cry";
+  });
+
+  content.append(heading, types, stats, abilities, cryButton);
+  card.append(visual, content);
+  return card;
+}
+
+function currentResults() {
+  return filterAndSortPokemon(state.pokemon, {
+    query: elements.search.value,
+    type: elements.type.value,
+    sort: elements.sort.value,
+  });
+}
+
+function render() {
+  const results = currentResults();
+  const visible = results.slice(0, state.visibleCount);
+  elements.container.replaceChildren(...visible.map(createPokemonCard));
+  elements.resultsCount.textContent = `${results.length} result${results.length === 1 ? "" : "s"}`;
+  elements.loadMore.hidden = visible.length >= results.length;
+
+  if (results.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "state-panel";
+    const message = document.createElement("div");
+    const title = document.createElement("strong");
+    const help = document.createElement("p");
+    title.textContent = "No Pokémon matched.";
+    help.textContent = "Try another name or clear the filters.";
+    message.append(title, help);
+    empty.append(message);
+    elements.container.append(empty);
   }
+}
 
-  async function fetchPokemonImage(pokemonName) {
-    try {
-      const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonName}`);
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      const pokemonData = await response.json();
-      const imageUrl = pokemonData.sprites.front_default;
-      return imageUrl;
-    } catch (error) {
-      console.error("There was a problem fetching the Pokémon image:", error);
-      return null;
-    }
+function populateTypes() {
+  const types = [...new Set(state.pokemon.flatMap((pokemon) => pokemon.types))].sort();
+  elements.type.replaceChildren(new Option("All types", "all"));
+  for (const type of types) {
+    elements.type.append(new Option(type.charAt(0).toUpperCase() + type.slice(1), type));
   }
+}
 
-  fetchData();
+async function loadPokemon() {
+  elements.loading.hidden = false;
+  elements.error.hidden = true;
+  elements.container.replaceChildren();
 
-  function injectPokemonData() {
-    const endIndex = currentIndex + batchSize;
-    for (let i = currentIndex; i < endIndex && i < pokemonList.length; i++) {
-      const pokemon = pokemonList[i];
-      fetchPokemonImage(pokemon.name)
-        .then((imageUrl) => {
-          const pokemonCard = document.createElement("div");
-          pokemonCard.classList.add("pokemon-card");
-          pokemonCard.innerHTML = `
-            <div class="pokemon-header">
-              <h2 class="pokemon-name">${pokemon.name}</h2>
-              <img class="pokemon-image" src="${imageUrl}" alt="${pokemon.name}">
-            </div>
-            <div class="pokemon-details">
-              <p class="pokemon-type">Base_stats:${pokemon.base_experience}</p>
-              <p class="pokemon-ability">Abilities: ${pokemon.abilities[0].ability.name}, ${pokemon.abilities[1].ability.name}</p>
-              <p class="pokemon-height">Height: ${pokemon.height}</p>
-              <p class="pokemon-weight">Weight: ${pokemon.weight}</p>
-              <button class="play-button">Play Audio</button>
-            </div>
-          `;
-          pokemonContainer.appendChild(pokemonCard);
-
-          // Add event listener to the play button inside each card
-          const playButton = pokemonCard.querySelector(".play-button");
-          playButton.addEventListener("click", () => {
-            const audioUrl = pokemon.cries.latest;
-            const audio = new Audio(audioUrl);
-            audio
-              .play()
-              .then(() => {
-                console.log("Audio playback started successfully");
-              })
-              .catch((error) => {
-                console.error("Error playing audio:", error);
-              });
-          });
-        })
-        .catch((error) => {
-          console.error("Failed to fetch Pokemon image:", error);
-        });
-    }
-    currentIndex = endIndex;
-
-    // Check if there are more Pokémon to load
-    if (currentIndex < pokemonList.length) {
-      window.addEventListener("scroll", handleScroll);
-    }
+  try {
+    const index = await fetchJson(API_URL);
+    const details = await Promise.all(index.results.map(({ url }) => fetchJson(url)));
+    state.pokemon = details.map(normalizePokemon);
+    state.visibleCount = PAGE_SIZE;
+    elements.loadedCount.textContent = state.pokemon.length;
+    populateTypes();
+    render();
+  } catch (error) {
+    console.error(error);
+    elements.error.hidden = false;
+    elements.resultsCount.textContent = "Pokédex unavailable";
+  } finally {
+    elements.loading.hidden = true;
   }
+}
 
-  function handleScroll() {
-    const scrollHeight = document.documentElement.scrollHeight;
-    const scrollTop = document.documentElement.scrollTop;
-    const clientHeight = document.documentElement.clientHeight;
+for (const control of [elements.search, elements.type, elements.sort]) {
+  control.addEventListener("input", () => {
+    state.visibleCount = PAGE_SIZE;
+    render();
+  });
+}
 
-    if (scrollTop + clientHeight >= scrollHeight * 0.8) {
-      // User has scrolled near the bottom, load more Pokémon
-      injectPokemonData();
-
-      // Remove the scroll event listener if all Pokémon have been loaded
-      if (currentIndex >= pokemonList.length) {
-        window.removeEventListener("scroll", handleScroll);
-      }
-    }
-  }
+elements.clearFilters.addEventListener("click", () => {
+  elements.search.value = "";
+  elements.type.value = "all";
+  elements.sort.value = "id";
+  state.visibleCount = PAGE_SIZE;
+  render();
+  elements.search.focus();
 });
+
+elements.loadMore.addEventListener("click", () => {
+  state.visibleCount += PAGE_SIZE;
+  render();
+});
+
+elements.retry.addEventListener("click", loadPokemon);
+
+window.addEventListener("scroll", () => {
+  const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 0;
+  elements.scrollProgress.style.width = `${Math.min(progress, 100)}%`;
+});
+
+loadPokemon();
