@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: node --check script.js
+      - name: Verify required page elements
+        run: |
+          grep -q 'id="pokemon-container"' index.html
+          grep -q 'id="progress-indicator"' index.html
+          grep -q 'id="progress-indicator-scroll"' index.html
+      - name: Serve the static site
+        run: |
+          python3 -m http.server 8000 --bind 127.0.0.1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent http://127.0.0.1:8000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
